@@ -175,8 +175,8 @@ const STAGE_W_CAM_KEYS = [
   // 35.1 - 36.7: Wide twin-outlet live parallel proof (Plug #1 tests OFF while Plug #2 stays 120 V)
   { t: 35.2, pos: [0.0, 0.7, 21.5],    target: [0.0, -0.85, 0.4] },
   { t: 36.6, pos: [0.0, 0.7, 21.5],    target: [0.0, -0.85, 0.4] },
-  // 38.0: Zoom straight into the energized parallel copper rail at (0, -0.6, 0) for W -> B crossfade
-  { t: 38.0, pos: [0.0, -0.3, 3.6],    target: [0.0, -0.6, 0.0] },
+  // 38.0: Zoom straight into the energized parallel Black Hot conductor emerging from the 12/2 jacket for W -> B crossfade
+  { t: 38.0, pos: [1.5, -1.65, 1.35], target: [1.55, -1.92, -2.25] },
 ];
 
 const STAGE_B_CAM_KEYS = [
