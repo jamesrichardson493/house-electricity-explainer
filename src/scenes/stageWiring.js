@@ -164,21 +164,21 @@ export function createStageWiring() {
 
     const silverUpper = makeScrew(silverTabMat);
     silverUpper.rotation.y = Math.PI;
-    silverUpper.position.set(-1.68, 1.0, 0.05);
+    silverUpper.position.set(-1.66, 1.0, 0.05);
 
     const silverLower = makeScrew(silverTabMat);
     silverLower.rotation.y = Math.PI;
-    silverLower.position.set(-1.68, -1.0, 0.05);
+    silverLower.position.set(-1.66, -1.0, 0.05);
 
     const greenScrew = makeScrew(greenScrewMat, true);
     greenScrew.rotation.y = Math.PI;
-    greenScrew.position.set(-1.68, -2.35, 0.05);
+    greenScrew.position.set(-1.66, -2.35, 0.05);
 
     const brassUpper = makeScrew(brassTabMat);
-    brassUpper.position.set(1.68, 1.0, 0.05);
+    brassUpper.position.set(1.66, 1.0, 0.05);
 
     const brassLower = makeScrew(brassTabMat);
-    brassLower.position.set(1.68, -1.0, 0.05);
+    brassLower.position.set(1.66, -1.0, 0.05);
 
     group.add(silverUpper, silverLower, greenScrew, brassUpper, brassLower);
 
@@ -194,35 +194,33 @@ export function createStageWiring() {
     };
   }
 
-  // Articulated 6-link copper tip curling from straight into a 270 deg clockwise J-hook
-  function makeJHookChain(copperMat) {
-    const chain = [];
+  // Concentric clockwise J-hook seated squarely in the clamping plane (x_clamp = ±1.765, y = screwY, z = 0.05)
+  function buildTerminalHook(copperMat, side, hookRadius = 0.222, wireRadius = 0.072) {
     const rootHook = new THREE.Group();
-    let parent = rootHook;
-    const segLen = 0.2;
-    const segGeo = new THREE.CylinderGeometry(0.08, 0.08, segLen, 10);
-    const jointGeo = new THREE.SphereGeometry(0.082, 10, 8);
+    const arc = Math.PI * 1.55;
+    const torus = new THREE.Mesh(
+      new THREE.TorusGeometry(hookRadius, wireRadius, 14, 30, arc),
+      copperMat
+    );
+    // Right (+1 Brass): wraps CW viewed from +X starting at (0, 0, +R) going up (+Y)
+    // Left  (-1 Silver/Green): wraps CW viewed from -X starting at (0, 0, -R) going up (+Y)
+    torus.rotation.y = -side * (Math.PI / 2);
 
-    for (let i = 0; i < 6; i++) {
-      const pivot = new THREE.Group();
-      if (i > 0) pivot.position.y = segLen;
-      const seg = new THREE.Mesh(segGeo, copperMat);
-      seg.position.y = segLen * 0.5;
-      const joint = new THREE.Mesh(jointGeo, copperMat);
-      joint.position.y = segLen;
-      pivot.add(seg, joint);
-      parent.add(pivot);
-      parent = pivot;
-      chain.push(pivot);
-    }
-    return { rootHook, chain };
-  }
+    const tipCap = new THREE.Mesh(new THREE.SphereGeometry(wireRadius * 1.02, 10, 10), copperMat);
+    tipCap.position.set(0, hookRadius * Math.sin(arc), side * hookRadius * Math.cos(arc));
 
-  function setHookCurl(chainObj, curlAmount, sign = 1) {
-    const anglePerLink = -0.77 * curlAmount * sign;
-    for (let i = 0; i < chainObj.chain.length; i++) {
-      chainObj.chain[i].rotation.x = anglePerLink;
-    }
+    const leadLen = 0.36;
+    const copperLead = new THREE.Mesh(
+      new THREE.CylinderGeometry(wireRadius, wireRadius, leadLen, 10),
+      copperMat
+    );
+    copperLead.position.set(0, -leadLen * 0.5, side * hookRadius);
+
+    const neckCap = new THREE.Mesh(new THREE.SphereGeometry(wireRadius * 1.02, 10, 10), copperMat);
+    neckCap.position.set(0, -leadLen, side * hookRadius);
+
+    rootHook.add(torus, tipCap, copperLead, neckCap);
+    return { rootHook, leadLen, tangentZ: side * hookRadius };
   }
 
   // ---------- 1. Existing Outlet #1 (x = -5.2) & New Outlet #2 (x = +5.2) ----------
@@ -261,31 +259,31 @@ export function createStageWiring() {
   inSheath.rotation.z = -0.35;
   root.add(inSheath);
 
-  // Incoming Black Hot -> Outlet #1 Upper Brass Screw (-3.50, +1.0, 0.05)
+  // Incoming Black Hot -> Outlet #1 Upper Brass Screw (clamp plane -3.435, +1.0, 0.05; side +1 -> tangentZ +0.272)
   const inHotCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-7.2, -3.3, -2.8),
-    new THREE.Vector3(-5.0, -3.0, -3.4),
-    new THREE.Vector3(-3.3, -1.6, -2.4),
-    new THREE.Vector3(-3.2, 0.4, -0.5),
-    new THREE.Vector3(-3.28, 0.68, 0.02),
+    new THREE.Vector3(-7.25, -3.25, -3.05),
+    new THREE.Vector3(-5.2, -3.1, -3.45),
+    new THREE.Vector3(-3.2, -1.9, -2.5),
+    new THREE.Vector3(-3.1, -0.25, -1.1),
+    new THREE.Vector3(-3.435, 0.28, 0.22),
+    new THREE.Vector3(-3.435, 0.64, 0.272),
   ]);
-  root.add(new THREE.Mesh(new THREE.TubeGeometry(inHotCurve, 30, 0.13, 10, false), blackInsulMat));
-  const inHotHook = makeJHookChain(blackCopperMat);
-  inHotHook.rootHook.position.set(-3.28, 0.68, 0.02);
-  setHookCurl(inHotHook, 1, 1);
+  root.add(new THREE.Mesh(new THREE.TubeGeometry(inHotCurve, 34, 0.13, 10, false), blackInsulMat));
+  const inHotHook = buildTerminalHook(blackCopperMat, 1);
+  inHotHook.rootHook.position.set(-3.435, 1.0, 0.05);
   root.add(inHotHook.rootHook);
 
-  // Incoming White Neutral -> Outlet #1 Upper Silver Screw (-6.90, +1.0, 0.05)
+  // Incoming White Neutral -> Outlet #1 Upper Silver Screw (clamp plane -6.965, +1.0, 0.05; side -1 -> tangentZ -0.172)
   const inNeuCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-7.4, -3.1, -2.6),
-    new THREE.Vector3(-7.6, -1.2, -1.8),
-    new THREE.Vector3(-7.3, 0.2, -0.6),
-    new THREE.Vector3(-7.12, 0.68, 0.02),
+    new THREE.Vector3(-7.45, -3.1, -2.9),
+    new THREE.Vector3(-7.4, -1.8, -2.0),
+    new THREE.Vector3(-7.32, -0.2, -1.1),
+    new THREE.Vector3(-6.965, 0.28, -0.2),
+    new THREE.Vector3(-6.965, 0.64, -0.172),
   ]);
-  root.add(new THREE.Mesh(new THREE.TubeGeometry(inNeuCurve, 26, 0.13, 10, false), whiteInsulMat));
-  const inNeuHook = makeJHookChain(whiteCopperMat);
-  inNeuHook.rootHook.position.set(-7.12, 0.68, 0.02);
-  setHookCurl(inNeuHook, 1, -1);
+  root.add(new THREE.Mesh(new THREE.TubeGeometry(inNeuCurve, 30, 0.13, 10, false), whiteInsulMat));
+  const inNeuHook = buildTerminalHook(whiteCopperMat, -1);
+  inNeuHook.rootHook.position.set(-6.965, 1.0, 0.05);
   root.add(inNeuHook.rootHook);
 
   // Green Ground Wire-Nut Pigtail Splice inside Box #1 at (-6.35, -2.65, -2.2)
@@ -300,152 +298,164 @@ export function createStageWiring() {
   wireNut.rotation.z = Math.PI * 0.25;
   root.add(wireNut);
 
-  // Incoming Bare Ground -> Wire Nut -> Short Pigtail to Outlet #1 Green Screw (-6.90, -2.35, 0.05)
+  // Incoming Bare Ground -> Wire Nut -> Short Pigtail to Outlet #1 Green Screw (-6.965, -2.35, 0.05)
   const inGndCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-7.5, -3.4, -2.7),
-    new THREE.Vector3(-6.7, -3.0, -2.4),
+    new THREE.Vector3(-7.35, -3.3, -3.05),
+    new THREE.Vector3(-6.75, -2.95, -2.55),
     new THREE.Vector3(-6.35, -2.65, -2.2),
   ]);
-  root.add(new THREE.Mesh(new THREE.TubeGeometry(inGndCurve, 14, 0.082, 8, false), bareCopperMat));
+  root.add(new THREE.Mesh(new THREE.TubeGeometry(inGndCurve, 14, 0.075, 8, false), bareCopperMat));
 
   const pigtailCurve = new THREE.CatmullRomCurve3([
     new THREE.Vector3(-6.35, -2.65, -2.2),
-    new THREE.Vector3(-7.05, -2.7, -1.0),
-    new THREE.Vector3(-7.12, -2.65, 0.02),
+    new THREE.Vector3(-7.15, -3.1, -1.35),
+    new THREE.Vector3(-6.965, -3.02, -0.24),
+    new THREE.Vector3(-6.965, -2.71, -0.172),
   ]);
-  root.add(new THREE.Mesh(new THREE.TubeGeometry(pigtailCurve, 16, 0.082, 8, false), bareCopperMat));
-  const out1GndHook = makeJHookChain(bareCopperMat);
-  out1GndHook.rootHook.position.set(-7.12, -2.65, 0.02);
-  setHookCurl(out1GndHook, 1, -1);
+  root.add(new THREE.Mesh(new THREE.TubeGeometry(pigtailCurve, 20, 0.075, 8, false), bareCopperMat));
+  const out1GndHook = buildTerminalHook(bareCopperMat, -1);
+  out1GndHook.rootHook.position.set(-6.965, -2.35, 0.05);
   root.add(out1GndHook.rootHook);
 
   // ---------- 3. Parallel 12/2 NM-B Jumper Ladder Rails (Outlet #1 -> Outlet #2) ----------
-  // Cutaway yellow outer jacket sleeve in middle lower bay so Hot (y=-0.6) & Neutral (y=-2.6) rails stay visible!
-  const midSheath = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.42, 0.42, 3.2, 18, 1, true, Math.PI * 0.2, Math.PI * 1.6),
-    yellowJacketMat
-  );
-  midSheath.rotation.z = Math.PI / 2;
-  midSheath.position.set(0, -1.65, -0.5);
+  function buildFlatRomexSheath(length) {
+    const outerR = 0.24;
+    const innerR = 0.175;
+    const halfSpan = 0.31;
+
+    const outer = new THREE.Shape();
+    outer.absarc(0, halfSpan, outerR, 0, Math.PI, false);
+    outer.absarc(0, -halfSpan, outerR, Math.PI, Math.PI * 2, false);
+    outer.closePath();
+
+    const inner = new THREE.Path();
+    inner.absarc(0, halfSpan, innerR, Math.PI, 0, true);
+    inner.absarc(0, -halfSpan, innerR, Math.PI * 2, Math.PI, true);
+    inner.closePath();
+    outer.holes.push(inner);
+
+    const geo = new THREE.ExtrudeGeometry(outer, {
+      depth: length,
+      bevelEnabled: false,
+      curveSegments: 20,
+    });
+    geo.rotateY(Math.PI / 2);
+    geo.translate(-length * 0.5, 0, 0);
+    return new THREE.Mesh(geo, yellowJacketMat);
+  }
+
+  function createTipArm(anchor, clampPos, side, insulMat, copperMat, wireRadius = 0.13) {
+    const tipArm = new THREE.Group();
+    tipArm.position.copy(anchor);
+    root.add(tipArm);
+
+    const relHook = clampPos.clone().sub(anchor);
+    const hook = buildTerminalHook(copperMat, side);
+    hook.rootHook.position.copy(relHook);
+
+    const leadEnd = relHook.clone().add(new THREE.Vector3(0, -hook.leadLen, hook.tangentZ));
+    const leadMid = leadEnd.clone().multiplyScalar(0.5);
+    leadMid.y = leadEnd.y * 0.48;
+    const leadCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), leadMid, leadEnd]);
+    const leadMesh = new THREE.Mesh(new THREE.TubeGeometry(leadCurve, 12, wireRadius, 8, false), insulMat);
+    const jointCap = new THREE.Mesh(new THREE.SphereGeometry(wireRadius * 1.02, 10, 8), insulMat);
+
+    tipArm.add(jointCap, leadMesh, hook.rootHook);
+    return tipArm;
+  }
+
+  // Hollow flat-oval yellow 12/2 outer jacket enclosing all 3 parallel conductors at z = -2.25
+  const midSheath = buildFlatRomexSheath(2.0);
+  midSheath.position.set(0, -2.25, -2.25);
   root.add(midSheath);
 
-  // Parallel Black Hot Rail (upper ladder rail along y = -0.6, z = 0.0 across middle bay -> Outlet #2 Upper Brass)
+  // Parallel Black Hot Rail (runs behind Outlet #2 body at z = -2.25 before curving forward to Brass)
+  const out1HotAnchor = new THREE.Vector3(-3.435, -2.05, 0.1);
+  const out2HotAnchor = new THREE.Vector3(6.965, -0.05, 0.12);
   const parHotStaticCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-3.0, -0.8, 0.02),
-    new THREE.Vector3(-1.8, -0.6, 0.0),
-    new THREE.Vector3(1.8, -0.6, 0.0),
-    new THREE.Vector3(5.6, -0.4, -0.6),
-    new THREE.Vector3(7.1, 0.35, -0.35),
+    out1HotAnchor.clone(),
+    new THREE.Vector3(-3.05, -2.45, -1.35),
+    new THREE.Vector3(-2.55, -2.02, -2.25),
+    new THREE.Vector3(-1.2, -1.97, -2.25),
+    new THREE.Vector3(0.0, -1.97, -2.25),
+    new THREE.Vector3(1.2, -1.97, -2.25),
+    new THREE.Vector3(3.2, -1.85, -2.35),
+    new THREE.Vector3(6.4, -1.6, -2.25),
+    new THREE.Vector3(7.12, -0.95, -1.2),
+    out2HotAnchor.clone(),
   ]);
-  root.add(new THREE.Mesh(new THREE.TubeGeometry(parHotStaticCurve, 44, 0.135, 10, false), blackInsulMat));
+  root.add(new THREE.Mesh(new THREE.TubeGeometry(parHotStaticCurve, 64, 0.132, 10, false), blackInsulMat));
 
-  // Left end (Outlet #1 Lower Brass (-3.50, -1.0, 0.05))
-  const out1HotTipArm = new THREE.Group();
-  out1HotTipArm.position.set(-3.0, -0.8, 0.02);
-  root.add(out1HotTipArm);
-  const out1HotLead = new THREE.Mesh(
-    new THREE.TubeGeometry(
-      new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(-0.28, -0.5, 0.0)]),
-      10,
-      0.13,
-      8,
-      false
-    ),
-    blackInsulMat
+  const out1HotTipArm = createTipArm(
+    out1HotAnchor,
+    new THREE.Vector3(-3.435, -1.0, 0.05),
+    1,
+    blackInsulMat,
+    blackCopperMat
   );
-  const out1HotHook = makeJHookChain(blackCopperMat);
-  out1HotHook.rootHook.position.set(-0.28, -0.5, 0.0);
-  out1HotTipArm.add(out1HotLead, out1HotHook.rootHook);
-
-  // Right end (Outlet #2 Upper Brass (+6.90, +1.0, 0.05))
-  const out2HotTipArm = new THREE.Group();
-  out2HotTipArm.position.set(7.1, 0.35, -0.35);
-  root.add(out2HotTipArm);
-  const out2HotLead = new THREE.Mesh(
-    new THREE.TubeGeometry(
-      new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.02, 0.33, 0.37)]),
-      10,
-      0.13,
-      8,
-      false
-    ),
-    blackInsulMat
+  const out2HotTipArm = createTipArm(
+    out2HotAnchor,
+    new THREE.Vector3(6.965, 1.0, 0.05),
+    1,
+    blackInsulMat,
+    blackCopperMat
   );
-  const out2HotHook = makeJHookChain(blackCopperMat);
-  out2HotHook.rootHook.position.set(0.02, 0.33, 0.37);
-  out2HotTipArm.add(out2HotLead, out2HotHook.rootHook);
 
-  // Parallel White Neutral Rail (lower ladder rail along y = -2.4, z = -0.6 across middle bay)
+  // Parallel White Neutral Rail (runs behind Outlet #1 & through bottom channel of 12/2 jacket)
+  const out1NeuAnchor = new THREE.Vector3(-6.965, -1.92, -0.3);
+  const out2NeuAnchor = new THREE.Vector3(3.435, -0.05, -0.25);
   const parNeuStaticCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-7.0, -2.0, -0.5),
-    new THREE.Vector3(-4.2, -2.55, -0.9),
-    new THREE.Vector3(0.0, -2.55, -0.6),
-    new THREE.Vector3(2.8, -2.2, -0.6),
-    new THREE.Vector3(3.22, 0.15, -0.35),
+    out1NeuAnchor.clone(),
+    new THREE.Vector3(-7.15, -2.95, -1.35),
+    new THREE.Vector3(-5.2, -3.15, -2.35),
+    new THREE.Vector3(-2.7, -2.58, -2.25),
+    new THREE.Vector3(-1.2, -2.53, -2.25),
+    new THREE.Vector3(0.0, -2.53, -2.25),
+    new THREE.Vector3(1.2, -2.53, -2.25),
+    new THREE.Vector3(2.8, -2.45, -2.05),
+    new THREE.Vector3(3.18, -1.35, -1.25),
+    out2NeuAnchor.clone(),
   ]);
-  root.add(new THREE.Mesh(new THREE.TubeGeometry(parNeuStaticCurve, 44, 0.135, 10, false), whiteInsulMat));
+  root.add(new THREE.Mesh(new THREE.TubeGeometry(parNeuStaticCurve, 64, 0.132, 10, false), whiteInsulMat));
 
-  // Left end (Outlet #1 Lower Silver (-6.90, -1.0, 0.05))
-  const out1NeuTipArm = new THREE.Group();
-  out1NeuTipArm.position.set(-7.0, -2.0, -0.5);
-  root.add(out1NeuTipArm);
-  const out1NeuLead = new THREE.Mesh(
-    new THREE.TubeGeometry(
-      new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(-0.12, 0.68, 0.52)]),
-      10,
-      0.13,
-      8,
-      false
-    ),
-    whiteInsulMat
+  const out1NeuTipArm = createTipArm(
+    out1NeuAnchor,
+    new THREE.Vector3(-6.965, -1.0, 0.05),
+    -1,
+    whiteInsulMat,
+    whiteCopperMat
   );
-  const out1NeuHook = makeJHookChain(whiteCopperMat);
-  out1NeuHook.rootHook.position.set(-0.12, 0.68, 0.52);
-  out1NeuTipArm.add(out1NeuLead, out1NeuHook.rootHook);
-
-  // Right end (Outlet #2 Upper Silver (+3.50, +1.0, 0.05))
-  const out2NeuTipArm = new THREE.Group();
-  out2NeuTipArm.position.set(3.22, 0.15, -0.35);
-  root.add(out2NeuTipArm);
-  const out2NeuLead = new THREE.Mesh(
-    new THREE.TubeGeometry(
-      new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.06, 0.53, 0.37)]),
-      10,
-      0.13,
-      8,
-      false
-    ),
-    whiteInsulMat
+  const out2NeuTipArm = createTipArm(
+    out2NeuAnchor,
+    new THREE.Vector3(3.435, 1.0, 0.05),
+    -1,
+    whiteInsulMat,
+    whiteCopperMat
   );
-  const out2NeuHook = makeJHookChain(whiteCopperMat);
-  out2NeuHook.rootHook.position.set(0.06, 0.53, 0.37);
-  out2NeuTipArm.add(out2NeuLead, out2NeuHook.rootHook);
 
-  // Parallel Bare Copper Ground (Green Wire Nut (-6.35, -2.65, -2.2) -> Outlet #2 Green Ground (+3.50, -2.35, 0.05))
+  // Parallel Bare Copper Ground (Wire Nut -> Center Channel of 12/2 Jacket -> Outlet #2 Green Ground)
+  const out2GndAnchor = new THREE.Vector3(3.435, -3.15, -0.25);
   const parGndStaticCurve = new THREE.CatmullRomCurve3([
     new THREE.Vector3(-6.35, -2.65, -2.2),
-    new THREE.Vector3(-3.2, -3.15, -1.8),
-    new THREE.Vector3(0.0, -3.1, -1.5),
-    new THREE.Vector3(2.85, -2.9, -0.8),
+    new THREE.Vector3(-4.4, -2.5, -2.55),
+    new THREE.Vector3(-2.7, -2.28, -2.25),
+    new THREE.Vector3(-1.2, -2.25, -2.25),
+    new THREE.Vector3(0.0, -2.25, -2.25),
+    new THREE.Vector3(1.2, -2.25, -2.25),
+    new THREE.Vector3(2.75, -2.55, -2.15),
+    new THREE.Vector3(3.22, -3.1, -1.15),
+    out2GndAnchor.clone(),
   ]);
-  root.add(new THREE.Mesh(new THREE.TubeGeometry(parGndStaticCurve, 36, 0.082, 8, false), bareCopperMat));
+  root.add(new THREE.Mesh(new THREE.TubeGeometry(parGndStaticCurve, 56, 0.075, 8, false), bareCopperMat));
 
-  const out2GndTipArm = new THREE.Group();
-  out2GndTipArm.position.set(2.85, -2.9, -0.8);
-  root.add(out2GndTipArm);
-  const out2GndLead = new THREE.Mesh(
-    new THREE.TubeGeometry(
-      new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.43, 0.25, 0.82)]),
-      10,
-      0.08,
-      8,
-      false
-    ),
-    bareCopperMat
+  const out2GndTipArm = createTipArm(
+    out2GndAnchor,
+    new THREE.Vector3(3.435, -2.35, 0.05),
+    -1,
+    bareCopperMat,
+    bareCopperMat,
+    0.075
   );
-  const out2GndHook = makeJHookChain(bareCopperMat);
-  out2GndHook.rootHook.position.set(0.43, 0.25, 0.82);
-  out2GndTipArm.add(out2GndLead, out2GndHook.rootHook);
 
   // Clockwise tightening indicator ring
   const cwRingGroup = new THREE.Group();
@@ -684,9 +694,7 @@ export function createStageWiring() {
     // 1. Ch 5 Step A: Outlet #1 Lower Brass Hook & Screw (21.2 -> 23.6)
     const o1HotAttach = smoothstep(21.2, 22.4, t);
     const o1HotTight = smoothstep(22.4, 23.6, t);
-    setHookCurl(out1HotHook, smoothstep(20.6, 21.8, t), 1);
-    out1HotTipArm.rotation.z = THREE.MathUtils.lerp(-0.45, 0.0, o1HotAttach);
-    out1HotTipArm.position.x = THREE.MathUtils.lerp(-2.2, -3.0, o1HotAttach);
+    out1HotTipArm.rotation.z = THREE.MathUtils.lerp(-0.46, 0.0, o1HotAttach);
     out1.brassLower.position.x = THREE.MathUtils.lerp(2.02, 1.66, o1HotTight);
     out1.brassLower.rotation.x = -o1HotTight * Math.PI * 3.5;
 
@@ -699,9 +707,7 @@ export function createStageWiring() {
     // 2. Ch 5 Step B: Outlet #1 Lower Silver Hook & Screw + Ground Nut Pulse (23.9 -> 26.2)
     const o1NeuAttach = smoothstep(23.9, 24.8, t);
     const o1NeuTight = smoothstep(24.8, 25.9, t);
-    setHookCurl(out1NeuHook, smoothstep(23.5, 24.4, t), -1);
-    out1NeuTipArm.rotation.z = THREE.MathUtils.lerp(0.4, 0.0, o1NeuAttach);
-    out1NeuTipArm.position.x = THREE.MathUtils.lerp(-7.8, -7.0, o1NeuAttach);
+    out1NeuTipArm.rotation.z = THREE.MathUtils.lerp(0.46, 0.0, o1NeuAttach);
     out1.silverLower.position.x = THREE.MathUtils.lerp(-2.02, -1.66, o1NeuTight);
     out1.silverLower.rotation.x = o1NeuTight * Math.PI * 3.5;
 
@@ -712,25 +718,19 @@ export function createStageWiring() {
     // 3. Ch 6: Outlet #2 Green Ground (28.5 -> 29.7), Silver Neutral (29.6 -> 30.8), Brass Hot (31.0 -> 32.7)
     const o2GndAttach = smoothstep(28.5, 29.0, t);
     const o2GndTight = smoothstep(29.0, 29.7, t);
-    setHookCurl(out2GndHook, smoothstep(28.0, 28.8, t), -1);
-    out2GndTipArm.rotation.z = THREE.MathUtils.lerp(0.35, 0.0, o2GndAttach);
-    out2GndTipArm.position.x = THREE.MathUtils.lerp(2.2, 2.85, o2GndAttach);
+    out2GndTipArm.rotation.z = THREE.MathUtils.lerp(0.48, 0.0, o2GndAttach);
     out2.greenScrew.position.x = THREE.MathUtils.lerp(-2.02, -1.66, o2GndTight);
     out2.greenScrew.rotation.x = o2GndTight * Math.PI * 3.5;
 
     const o2NeuAttach = smoothstep(29.6, 30.1, t);
     const o2NeuTight = smoothstep(30.1, 30.8, t);
-    setHookCurl(out2NeuHook, smoothstep(29.2, 29.9, t), -1);
-    out2NeuTipArm.rotation.z = THREE.MathUtils.lerp(0.35, 0.0, o2NeuAttach);
-    out2NeuTipArm.position.x = THREE.MathUtils.lerp(2.5, 3.22, o2NeuAttach);
+    out2NeuTipArm.rotation.z = THREE.MathUtils.lerp(0.46, 0.0, o2NeuAttach);
     out2.silverUpper.position.x = THREE.MathUtils.lerp(-2.02, -1.66, o2NeuTight);
     out2.silverUpper.rotation.x = o2NeuTight * Math.PI * 3.5;
 
     const o2HotAttach = smoothstep(31.0, 31.6, t);
     const o2HotTight = smoothstep(31.6, 32.7, t);
-    setHookCurl(out2HotHook, smoothstep(30.6, 31.4, t), 1);
-    out2HotTipArm.rotation.z = THREE.MathUtils.lerp(-0.35, 0.0, o2HotAttach);
-    out2HotTipArm.position.x = THREE.MathUtils.lerp(7.8, 7.1, o2HotAttach);
+    out2HotTipArm.rotation.z = THREE.MathUtils.lerp(-0.46, 0.0, o2HotAttach);
     out2.brassUpper.position.x = THREE.MathUtils.lerp(2.02, 1.66, o2HotTight);
     out2.brassUpper.rotation.x = -o2HotTight * Math.PI * 3.5;
 
@@ -745,11 +745,11 @@ export function createStageWiring() {
       cwMat.color.setHex(hex);
       cwMat.userData.baseOpacity = 0.85;
     };
-    if (o1HotTight > 0.02 && o1HotTight < 0.98) setRing(-3.0, -1.0, 0xfbbf24, -1);
-    else if (o1NeuTight > 0.02 && o1NeuTight < 0.98) setRing(-7.4, -1.0, 0x38bdf8, 1);
-    else if (o2GndTight > 0.02 && o2GndTight < 0.98) setRing(3.0, -2.35, 0x34d399, 1);
-    else if (o2NeuTight > 0.02 && o2NeuTight < 0.98) setRing(3.0, 1.0, 0x38bdf8, 1);
-    else if (o2HotTight > 0.02 && o2HotTight < 0.98) setRing(7.4, 1.0, 0xfbbf24, -1);
+    if (o1HotTight > 0.02 && o1HotTight < 0.98) setRing(-3.15, -1.0, 0xfbbf24, -1);
+    else if (o1NeuTight > 0.02 && o1NeuTight < 0.98) setRing(-7.25, -1.0, 0x38bdf8, 1);
+    else if (o2GndTight > 0.02 && o2GndTight < 0.98) setRing(3.15, -2.35, 0x34d399, 1);
+    else if (o2NeuTight > 0.02 && o2NeuTight < 0.98) setRing(3.15, 1.0, 0x38bdf8, 1);
+    else if (o2HotTight > 0.02 && o2HotTight < 0.98) setRing(7.25, 1.0, 0xfbbf24, -1);
 
     // 5. Tool A: NCVT Voltage Tester at Outlet #1 (19.0 -> 21.0)
     const showNcvt = t >= 19.0 && t < 21.1;
